@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Compare your Express Entry CRS score under the current rules and the new IRCC rules effective November 3, 2026.">
+<title>CRS Score Comparator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+/* Layout: questionnaire column + sticky twin score ledger (old vs new), then results, then draw history */
+:root{
+  --bg:#F2F4F3; --surface:#FFFFFF; --sunk:#E8ECEA; --ink:#15201C; --muted:#5B6863; --line:#D5DDD9;
+  --old:#5F6B78; --oldSoft:#E6E9ED; --new:#0E6A55; --newSoft:#DDEFE8; --amber:#A86400; --amberSoft:#FAEBD3;
+  --bad:#A93A2E; --focus:#2C6FB7;
+  --c-cec:#2C6FB7; --c-fr:#7A4FB5; --c-pnp:#B4473B; --c-health:#1C8A6F; --c-trade:#A87612; --c-other:#66737A;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1412; --surface:#16201C; --sunk:#1C2824; --ink:#E4EBE8; --muted:#97A5A0; --line:#2A3833;
+  --old:#A3AEBA; --oldSoft:#232C33; --new:#4FC7A5; --newSoft:#15302A; --amber:#E9A748; --amberSoft:#33270F;
+  --bad:#EE7B6E; --focus:#7FB3EE;
+  --c-cec:#6FA8E6; --c-fr:#B293E6; --c-pnp:#EB8174; --c-health:#4FC7A5; --c-trade:#E2B04F; --c-other:#9AA8AE;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1412; --surface:#16201C; --sunk:#1C2824; --ink:#E4EBE8; --muted:#97A5A0; --line:#2A3833;
+  --old:#A3AEBA; --oldSoft:#232C33; --new:#4FC7A5; --newSoft:#15302A; --amber:#E9A748; --amberSoft:#33270F;
+  --bad:#EE7B6E; --focus:#7FB3EE;
+  --c-cec:#6FA8E6; --c-fr:#B293E6; --c-pnp:#EB8174; --c-health:#4FC7A5; --c-trade:#E2B04F; --c-other:#9AA8AE;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(22px,3vw,30px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:17px;font-weight:700}
+p{margin:0}
+a{color:var(--focus)}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font:600 11px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* header */
+header.top{padding-block:32px 20px;display:grid;gap:14px}
+.lede{max-width:66ch;color:var(--muted);font-size:16px}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px}
+.tag{font:600 12px/1 var(--body);padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}
+.tag.new{background:var(--newSoft);border-color:transparent;color:var(--new)}
+.tag.amber{background:var(--amberSoft);border-color:transparent;color:var(--amber)}
+
+/* change summary */
+section{margin-top:40px}
+.secHead{display:grid;gap:6px;margin-bottom:16px}
+.changes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.chg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:8px;align-content:start;min-width:0}
+.chg ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.lmi{overflow-x:auto;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 12px/1.3 var(--body);color:var(--muted);letter-spacing:.03em;background:var(--sunk)}
+tbody tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* calculator */
+.calc{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:24px;align-items:start}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+button{font:600 14px/1 var(--body);cursor:pointer;border-radius:8px;padding:10px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+button.primary{background:var(--new);color:var(--surface);border-color:var(--new)}
+button:hover{border-color:var(--ink)}
+.qlist{display:grid;gap:10px}
+.q{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:10px;min-width:0}
+.q.current{border-color:var(--new);box-shadow:0 0 0 3px var(--newSoft)}
+.q.isnew{border-left:4px solid var(--new)}
+.qhead{display:flex;gap:10px;align-items:baseline}
+.qnum{font:600 12px/1 var(--mono);color:var(--muted);min-width:2.2em}
+.qtitle{font-weight:600}
+.qhelp{color:var(--muted);font-size:13px;margin-left:calc(2.2em + 10px)}
+.qbody{margin-left:calc(2.2em + 10px);display:grid;gap:10px;min-width:0}
+.badge{display:inline-block;font:700 10px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;border-radius:4px;background:var(--newSoft);color:var(--new);margin-right:6px;vertical-align:2px}
+.badge.old{background:var(--oldSoft);color:var(--old)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pills label{position:relative}
+.pills input{position:absolute;opacity:0;pointer-events:none}
+.pills span{display:inline-block;padding:8px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer;font-size:14px;background:var(--bg)}
+.pills input:checked + span{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.pills input:focus-visible + span{outline:2px solid var(--focus);outline-offset:2px}
+select,input[type=number]{font:15px var(--body);padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
+.abil{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.abil label{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+.abil select,.abil input{width:100%}
+.clbline{font:500 12px var(--mono);color:var(--muted)}
+.note{font-size:13px;color:var(--muted)}
+.note.warn{color:var(--amber)}
+
+/* score panel */
+.panel{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px}
+.twin{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.score{border-radius:10px;padding:12px;display:grid;gap:2px}
+.score.o{background:var(--oldSoft)}
+.score.n{background:var(--newSoft)}
+.score .lab{font:600 11px/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase}
+.score.o .lab,.score.o .big{color:var(--old)}
+.score.n .lab,.score.n .big{color:var(--new)}
+.big{font:600 44px/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.delta{font:600 14px var(--mono);text-align:center;padding:8px;border-radius:8px;background:var(--amberSoft);color:var(--amber)}
+.fbars{display:grid;gap:9px}
+.fb{display:grid;gap:3px}
+.fb .row{display:flex;justify-content:space-between;font-size:12px}
+.fb .row b{font:600 12px var(--mono)}
+.track{height:6px;background:var(--sunk);border-radius:3px;position:relative;overflow:hidden}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.track i.o{background:var(--old);opacity:.55}
+.track i.n{background:var(--new);height:3px;top:3px}
+.progress{font-size:12px;color:var(--muted)}
+
+/* mobile bar */
+.mbar{display:none}
+@media (max-width:900px){
+  .calc{grid-template-columns:minmax(0,1fr)}
+  .panel{position:static}
+  .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;gap:10px;justify-content:space-between;align-items:center;background:var(--surface);border-top:1px solid var(--line);
+    padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  .mbar .m{font:600 13px var(--body)}
+  .mbar .m b{font:600 22px var(--mono);margin-left:6px}
+  .abil{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .qhelp,.qbody{margin-left:0}
+}
+
+/* results */
+.results{display:grid;gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0}
+.bk{overflow-x:auto}
+.bk td.chg{color:var(--amber);font-weight:600}
+.bk tr.grp td{font-weight:700;background:var(--sunk)}
+.bk tr.tot td{font-weight:700;font-size:16px}
+.sugs{display:grid;gap:10px}
+.sug{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.sug h3{font-size:16px}
+.sug .why{color:var(--muted);font-size:13.5px;grid-column:1}
+.sug .gain{grid-row:1 / span 2;grid-column:2;display:grid;gap:4px;justify-items:end;align-content:center}
+.gain .g{font:600 13px var(--mono);padding:4px 8px;border-radius:6px;white-space:nowrap}
+.gain .g.n{background:var(--newSoft);color:var(--new)}
+.gain .g.o{background:var(--oldSoft);color:var(--old)}
+.sug .bar{grid-column:1 / -1;height:4px;background:var(--sunk);border-radius:2px;overflow:hidden}
+.sug .bar i{display:block;height:100%;background:var(--new)}
+.alert{padding:12px 14px;border-radius:10px;background:var(--amberSoft);color:var(--ink);font-size:14px}
+.compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.cut{padding:12px;border:1px solid var(--line);border-radius:10px;display:grid;gap:4px;background:var(--bg)}
+.cut .v{font:600 22px var(--mono)}
+.ok{color:var(--new);font-weight:600}
+.no{color:var(--bad);font-weight:600}
+@media (max-width:560px){.sug{grid-template-columns:minmax(0,1fr)}.sug .gain{grid-row:auto;grid-column:1;justify-items:start;display:flex;flex-wrap:wrap}}
+
+/* draws */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:2px}
+.stat .v{font:600 22px var(--mono)}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.filters button{padding:7px 11px;font-size:13px;border-radius:999px}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chartbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto;margin-bottom:12px}
+.chartbox svg{display:block;width:100%;min-width:560px;height:auto}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+.drawtable{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow-x:auto;max-height:560px}
+.drawtable th{position:sticky;top:0;z-index:1}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin:4px 0 10px}
+.catinfo{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:12px}
+.catinfo div{font-size:13.5px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+details summary{cursor:pointer;font-weight:600}
+footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:grid;gap:8px}
+@media (prefers-reduced-motion:no-preference){.track i{transition:width .35s ease}.sug .bar i{transition:width .35s ease}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">Express Entry · Comprehensive Ranking System</span>
+  <h1>CRS Score Comparator</h1>
+  <p class="lede">Answer the same questions as IRCC's CRS tool and see two scores side by side: the rules in force today, and the rules that take effect on <b>November 3, 2026</b>, when IRCC adds points for high-wage work experience and job offers.</p>
+  <div class="tagrow">
+    <span class="tag new">New rules effective Nov 3, 2026</span>
+    <span class="tag amber">Unofficial tool, not affiliated with IRCC</span>
+    <span class="tag">Draw data to Oct 16, 2026</span>
+  </div>
+</header>
+
+<section id="changes" aria-labelledby="chg-h">
+  <div class="secHead"><span class="eyebrow">What IRCC is changing</span><h2 id="chg-h">One factor is rebuilt; everything else stays</h2></div>
+  <div class="changes">
+    <div class="chg"><h3>New: Labour Market Integration factor</h3>
+      <p>Replaces the core "Canadian work experience" factor (max 70 with a spouse, 80 without). You get points from <b>either</b> your Canadian work experience <b>or</b> a qualifying job offer, whichever is higher. Never both.</p>
+      <p class="note">Maximum: 140 points with an accompanying spouse, 150 without.</p></div>
+    <div class="chg"><h3>High-wage occupations</h3>
+      <ul><li>186 occupations (NOC codes) whose <b>median wage</b> is at least 1.3×, 1.5× or 2× the Canada-wide median.</li>
+      <li>Your tier depends on the occupation, not your personal salary.</li>
+      <li>Work experience bonus needs 12+ months (1,560 hours) in listed occupations.</li></ul></div>
+    <div class="chg"><h3>Job offers are back, no LMIA</h3>
+      <ul><li>Job offer points were removed on March 25, 2025. Today they are worth 0.</li>
+      <li>From Nov 3: 50, 70 or 100 points for an offer in a high-wage occupation. No LMIA needed.</li>
+      <li>Full-time, non-seasonal, at least one year after you become a PR. Add it to your profile before Nov 3.</li></ul></div>
+    <div class="chg"><h3>Unchanged</h3>
+      <ul><li>Age, education, official languages, spouse factors.</li>
+      <li>Skill transferability (it still uses the length of your Canadian experience).</li>
+      <li>Provincial nomination (600), French (25/50), Canadian education (15/30), sibling (15).</li>
+      <li>IRCC will recalculate every profile and pause invitations for up to two weeks.</li></ul></div>
+  </div>
+  <div class="lmi">
+    <table>
+      <thead><tr><th>Labour Market Integration (new)</th><th class="n">With spouse</th><th class="n">Without spouse</th></tr></thead>
+      <tbody>
+        <tr><td><b>Route A: Canadian work experience</b>, length points (same as today)</td><td class="n">35 / 46 / 56 / 63 / 70</td><td class="n">40 / 53 / 64 / 72 / 80</td></tr>
+        <tr><td>+ high-wage bonus, 12+ months in occupations at ≥1.3× / ≥1.5× / ≥2× median wage</td><td class="n">20 / 40 / 70</td><td class="n">20 / 40 / 70</td></tr>
+        <tr><td><b>Route B: Qualifying job offer</b> in an occupation at ≥1.3× / ≥1.5× / ≥2× median wage</td><td class="n">50 / 70 / 100</td><td class="n">50 / 70 / 100</td></tr>
+        <tr><td><b>You receive the higher of A or B</b></td><td class="n">max 140</td><td class="n">max 150</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="calculator" aria-labelledby="calc-h">
+  <div class="secHead"><span class="eyebrow">Calculator</span><h2 id="calc-h">Answer the questions</h2>
+    <p class="note">Questions appear one at a time, like the official tool. Questions marked <span class="badge">New</span> only affect the new score.</p></div>
+  <div class="calc">
+    <div>
+      <div class="toolbar">
+        <button type="button" id="btnSample">Fill a sample profile</button>
+        <button type="button" id="btnReset">Start over</button>
+      </div>
+      <div class="qlist" id="qlist"></div>
+    </div>
+    <aside class="panel" aria-label="Live scores">
+      <div class="twin">
+        <div class="score o"><span class="lab">Current rules</span><span class="big" id="sOld">0</span><span class="note">until Nov 2, 2026</span></div>
+        <div class="score n"><span class="lab">New rules</span><span class="big" id="sNew">0</span><span class="note">from Nov 3, 2026</span></div>
+      </div>
+      <div class="delta" id="sDelta">Difference: 0</div>
+      <div class="fbars" id="fbars"></div>
+      <p class="progress" id="prog"></p>
+      <button type="button" class="primary" id="btnResults" hidden>See full results and suggestions</button>
+    </aside>
+  </div>
+</section>
+
+<section id="results" hidden aria-labelledby="res-h">
+  <div class="secHead"><span class="eyebrow">Your results</span><h2 id="res-h">Breakdown, old vs new</h2></div>
+  <div class="results">
+    <div class="card bk"><table id="bkTable"></table></div>
+    <div id="ageAlert"></div>
+    <div class="card">
+      <div class="secHead"><span class="eyebrow">How to raise your score</span><h3>Suggestions ranked by points gained under the new rules</h3>
+        <p class="note">Each one is calculated from your answers: we change one thing and recompute both scores.</p></div>
+      <div class="sugs" id="sugs"></div>
+    </div>
+    <div class="card">
+      <div class="secHead"><span class="eyebrow">Against recent draws</span><h3>Latest cut-off in each draw type</h3>
+        <p class="note">Category draws also require you to qualify for the category (for example, French ability or work in that occupation). Cut-offs may move once the new points apply to everyone.</p></div>
+      <div class="compare" id="compare"></div>
+    </div>
+  </div>
+</section>
+
+<section id="draws" aria-labelledby="draws-h">
+  <div class="secHead"><span class="eyebrow">Rounds of invitations</span><h2 id="draws-h">Express Entry draws, last six months</h2>
+    <p class="note">Rounds #412 to #450, April 27 to October 16, 2026. Compiled from published draw reports; check IRCC's rounds page for official figures and tie-breaking times.</p></div>
+  <div class="stats" id="dstats"></div>
+  <div class="filters" id="dfilters" role="group" aria-label="Filter by draw type"></div>
+  <div class="chartbox"><div class="legend" id="dlegend"></div><svg id="dchart" viewBox="0 0 900 320" role="img" aria-label="CRS cut-off by draw date"></svg></div>
+  <div class="drawtable"><table id="dtable"></table></div>
+  <details style="margin-top:14px"><summary>What each draw type means</summary><div class="catinfo" id="catinfo"></div></details>
+</section>
+
+<footer>
+  <p><b>This is not an official IRCC tool.</b> Scores are estimates built from IRCC's published CRS criteria and the November 3, 2026 changes announced on October 16, 2026. Always confirm with IRCC's own tool and your Express Entry profile.</p>
+  <p>Sources: <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/changes.html" target="_blank" rel="noopener">IRCC: 2026 changes to points for Canadian work experience and job offers</a> · <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/crs-criteria.html" target="_blank" rel="noopener">IRCC: CRS criteria</a> · <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/rounds-invitations.html" target="_blank" rel="noopener">IRCC: Rounds of invitations</a> · <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score.html" target="_blank" rel="noopener">IRCC: official CRS tool</a></p>
+</footer>
+</div>
+
+<div class="mbar" aria-hidden="true">
+  <span class="m" style="color:var(--old)">Current<b id="mOld">0</b></span>
+  <span class="m" style="color:var(--new)">New<b id="mNew">0</b></span>
+  <span class="m" style="color:var(--amber)" id="mDelta">+0</span>
+</div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- CRS tables ---------- */
+const AGE = {17:[0,0],18:[90,99],19:[95,105],20:[100,110],21:[100,110],22:[100,110],23:[100,110],24:[100,110],25:[100,110],26:[100,110],27:[100,110],28:[100,110],29:[100,110],30:[95,105],31:[90,99],32:[85,94],33:[80,88],34:[75,83],35:[70,77],36:[65,72],37:[60,66],38:[55,61],39:[50,55],40:[45,50],41:[35,39],42:[25,28],43:[15,17],44:[5,6],45:[0,0]};
+const EDU = [
+  ['lt_sec','Less than secondary school (high school)',0,0,0,0],
+  ['sec','Secondary diploma (high school graduation)',28,30,2,0],
+  ['one','One-year program at a university, college, trade or technical school, or other institute',84,90,6,1],
+  ['two','Two-year program at a university, college, trade or technical school, or other institute',91,98,7,1],
+  ["bach","Bachelor's degree OR a three or more year program at a university, college, trade or technical school, or other institute",112,120,8,1],
+  ['twoplus','Two or more certificates, diplomas, or degrees. One must be for a program of three or more years',119,128,9,2],
+  ['master',"Master's degree, OR professional degree needed to practice in a licensed profession",126,135,10,2],
+  ['phd','Doctoral level university degree (PhD)',140,150,10,2]
+]; // key,label,withSpouse,without,spousePts,transferGroup
+const EDUMAP = Object.fromEntries(EDU.map(e=>[e[0],e]));
+const CDN_W = [0,35,46,56,63,70], CDN_WO=[0,40,53,64,72,80], SP_CDN=[0,5,7,8,9,10];
+const HW_BONUS = {none:0,'1.3':20,'1.5':40,'2':70};
+const JO_PTS = {none:0,'1.3':50,'1.5':70,'2':100};
+const AB = ['S','L','R','W'], ABN = {S:'Speaking',L:'Listening',R:'Reading',W:'Writing'};
+
+/* test -> CLB thresholds for CLB 4..10 */
+const TESTS = {
+  celpip:{name:'CELPIP-General',lang:'en'},
+  ielts:{name:'IELTS General Training',lang:'en',th:{L:[4.5,5,5.5,6,7.5,8,8.5],R:[3.5,4,5,6,6.5,7,8],W:[4,5,5.5,6,6.5,7,7.5],S:[4,5,5.5,6,6.5,7,7.5]}},
+  pte:{name:'PTE Core',lang:'en',th:{R:[33,42,51,60,69,78,88],W:[41,51,60,69,79,88,90],L:[28,39,50,60,71,82,89],S:[42,51,59,68,76,84,89]},range:[10,90]},
+  clb:{name:'I know my CLB levels (English)',lang:'en'},
+  tef:{name:'TEF Canada',lang:'fr',th:{R:[121,151,181,207,233,248,263],L:[145,181,217,249,280,298,316],W:[181,226,271,310,349,371,393],S:[181,226,271,310,349,371,393]},max:{R:300,L:360,W:450,S:450}},
+  tcf:{name:'TCF Canada',lang:'fr',th:{L:[331,369,398,458,503,523,549],R:[342,375,406,453,499,524,549],W:[4,6,7,10,12,14,16],S:[4,6,7,10,12,14,16]},max:{L:699,R:699,W:20,S:20}},
+  nclc:{name:'I know my NCLC levels (French)',lang:'fr'}
+};
+function toCLB(test,ab,v){
+  if(v===''||v==null||isNaN(v)) return null;
+  v=+v;
+  if(test==='celpip'||test==='clb'||test==='nclc') return v;
+  const th=TESTS[test].th[ab]; let c=0;
+  for(let i=0;i<th.length;i++) if(v>=th[i]) c=4+i;
+  return c;
+}
+function clbsOf(test,raw){
+  if(!test||test==='none') return null;
+  const o={}; for(const a of AB){const c=toCLB(test,a,raw&&raw[a]); if(c==null) return null; o[a]=c;}
+  return o;
+}
+const minOf = o=>Math.min(o.S,o.L,o.R,o.W);
+function l1pt(c,sp){ if(c<4) return 0; if(c<=5) return 6; if(c===6) return sp?8:9; if(c===7) return sp?16:17; if(c===8) return sp?22:23; if(c===9) return sp?29:31; return sp?32:34; }
+function l2pt(c){ return c<=4?0:c<=6?1:c<=8?3:6; }
+function sppt(c){ return c<=4?0:c<=6?1:c<=8?3:5; }
+
+/* ---------- scoring ---------- */
+function partnered(s){ return s.marital==='married'||s.marital==='cl'; }
+function withSpouse(s){ return partnered(s)&&s.spouseCit==='no'&&s.spouseCome==='yes'; }
+function score(s){
+  const sp=withSpouse(s), ix=sp?0:1;
+  const age = s.age? AGE[s.age][ix]:0;
+  const e = s.edu? EDUMAP[s.edu]:null;
+  const edu = e? e[2+ix]:0;
+  const c1 = clbsOf(s.l1test,s.l1), c2 = clbsOf(s.l2test,s.l2);
+  let lang1=0; if(c1) for(const a of AB) lang1+=l1pt(c1[a],sp);
+  let lang2=0; if(c2){ for(const a of AB) lang2+=l2pt(c2[a]); lang2=Math.min(lang2,sp?22:24); }
+  const cy = s.cdnWork? +s.cdnWork:0;
+  const cdnOld = (sp?CDN_W:CDN_WO)[cy];
+  const hw = cy>=1 && s.hwExp ? HW_BONUS[s.hwExp]:0;
+  const jo = s.jo==='yes' && s.joTier ? JO_PTS[s.joTier]:0;
+  const routeA = cdnOld+hw;
+  const lmi = Math.min(Math.max(routeA,jo), sp?140:150);
+  // spouse
+  let spEdu=0,spLang=0,spCdn=0;
+  if(sp){
+    spEdu = s.spEdu? EDUMAP[s.spEdu][4]:0;
+    const cs=clbsOf(s.spTest,s.sp); if(cs) for(const a of AB) spLang+=sppt(cs[a]);
+    spCdn = s.spCdn? SP_CDN[+s.spCdn]:0;
+  }
+  // skill transferability
+  const m1 = c1? minOf(c1):0;
+  const lt = m1>=9?2:m1>=7?1:0;
+  const eg = e? e[5]:0;
+  const ct = cy>=2?2:cy===1?1:0;
+  const grid = (g,t)=> g===1?[0,13,25][t]: g===2?[0,25,50][t]:0;
+  const eduLang=grid(eg,lt), eduCdn=grid(eg,ct);
+  const eduT=Math.min(50,eduLang+eduCdn);
+  const fy = s.foreign? +s.foreign:0, fg = fy>=3?2:fy>=1?1:0;
+  const forLang=grid(fg,lt), forCdn=grid(fg,ct);
+  const forT=Math.min(50,forLang+forCdn);
+  const coqT = s.coq==='yes'? (m1>=7?50:m1>=5?25:0):0;
+  const transfer=Math.min(100,eduT+forT+coqT);
+  // additional
+  const pnp = s.pnp==='yes'?600:0, sib=s.sib==='yes'?15:0;
+  let fr=0;
+  const frC = c1&&TESTS[s.l1test].lang==='fr'?c1: c2&&TESTS[s.l2test].lang==='fr'?c2:null;
+  const enC = c1&&TESTS[s.l1test].lang==='en'?c1: c2&&TESTS[s.l2test].lang==='en'?c2:null;
+  if(frC && minOf(frC)>=7) fr = enC && minOf(enC)>=5 ? 50:25;
+  const cedu = s.cdnEdu==='yes'? ({sec:0,short:15,long:30}[s.cdnEduLvl]||0):0;
+  const add=Math.min(600,pnp+sib+fr+cedu);
+  const coreBase=age+edu+lang1+lang2;
+  const spT=spEdu+spLang+spCdn;
+  const oldT=coreBase+cdnOld+spT+transfer+add;
+  const newT=coreBase+lmi+spT+transfer+add;
+  return {sp,age,edu,lang1,lang2,cdnOld,hw,jo,routeA,lmi,spEdu,spLang,spCdn,spT,eduT,forT,coqT,transfer,pnp,sib,fr,cedu,add,oldT,newT,c1,c2,m1};
+}
+
+/* ---------- questions ---------- */
+const yn=[['yes','Yes'],['no','No']];
+const ageOpts=[['17','17 years of age or less']].concat(Array.from({length:27},(_,i)=>[String(18+i),(18+i)+' years of age'])).concat([['45','45 years of age or more']]);
+const tierOpts=[['none','No'],['1.3','Yes, 1.3× tier'],['1.5','Yes, 1.5× tier'],['2','Yes, 2× tier']];
+const Q = [
+  {id:'marital',t:'What is your marital status?',type:'choice',opts:[['single','Never married / single'],['married','Married'],['cl','Common-law'],['sep','Legally separated'],['div','Divorced'],['ann','Annulled marriage'],['wid','Widowed']]},
+  {id:'spouseCit',t:'Is your spouse or common-law partner a citizen or permanent resident of Canada?',type:'choice',opts:yn,show:s=>partnered(s)},
+  {id:'spouseCome',t:'Will your spouse or common-law partner come with you to Canada?',type:'choice',opts:yn,show:s=>partnered(s)&&s.spouseCit==='no'},
+  {id:'age',t:'How old are you?',h:'Choose the age you will be when you get an invitation, if you know it.',type:'select',opts:ageOpts},
+  {id:'edu',t:'What is your level of education?',h:'Canadian degree, diploma or certificate, or an Educational Credential Assessment (ECA) if you studied outside Canada.',type:'select',opts:EDU.map(e=>[e[0],e[1]])},
+  {id:'cdnEdu',t:'Have you earned a Canadian degree, diploma or certificate?',h:'Not counted: study where English or French as a second language made up more than half the program, or where you were mostly distance learning.',type:'choice',opts:yn},
+  {id:'cdnEduLvl',t:'Choose the best answer to describe this level of education.',type:'choice',show:s=>s.cdnEdu==='yes',opts:[['sec','Secondary (high school) or less'],['short','One- or two-year diploma or certificate'],['long','Degree, diploma or certificate of three years or longer, or a Master’s, professional or doctoral degree of at least one academic year']]},
+  {id:'l1',t:'Official languages: your first official language test',h:'Results must be less than two years old. Pick your test, then enter each score.',type:'lang',key:'l1'},
+  {id:'l2',t:'Do you have results for your other official language?',h:'Optional, but a French test can add up to 74 points.',type:'lang',key:'l2',second:true},
+  {id:'cdnWork',t:'In the last ten years, how many years of skilled work experience in Canada do you have?',h:'Paid, full-time (or equal part-time) work in TEER 0, 1, 2 or 3 jobs, while authorized to work in Canada.',type:'choice',opts:[['0','None or less than a year'],['1','1 year'],['2','2 years'],['3','3 years'],['4','4 years'],['5','5 years or more']]},
+  {id:'hwExp',isNew:true,t:'Of that Canadian experience, do you have at least 12 months (1,560 hours) in occupations on IRCC’s high-wage list?',h:'Pick the highest tier where your combined 12 months qualify. The tier is set by your NOC code’s median wage: e.g. family physicians, lawyers and IT managers are 2×; software engineers, civil engineers and registered nurses 1.5×; web developers, accountants and social workers 1.3×. Check IRCC’s list for your NOC.',type:'choice',opts:tierOpts,show:s=>+s.cdnWork>=1},
+  {id:'foreign',t:'In the last 10 years, how many total years of foreign skilled work experience do you have?',h:'Full-time (or equal part-time) skilled work in TEER 0, 1, 2 or 3 outside Canada.',type:'choice',opts:[['0','None or less than a year'],['1','1 year'],['2','2 years'],['3','3 years or more']]},
+  {id:'coq',t:'Do you have a certificate of qualification from a Canadian province, territory or federal body?',h:'For skilled trades only. Not the same as a licence to practise.',type:'choice',opts:yn},
+  {id:'jo',t:'Do you have a valid job offer?',h:'Under current rules a job offer earns 0 CRS points (removed March 25, 2025). From November 3, 2026 a qualifying offer can earn up to 100, with no LMIA needed.',type:'choice',opts:yn},
+  {id:'joTier',isNew:true,t:'Is the job offer in an occupation on IRCC’s high-wage list? Which tier?',h:'Full-time, non-seasonal, for at least one year after you become a permanent resident. Offers in occupations not on the list get 0 points.',type:'choice',opts:[['none','Not on the list'],['1.3','1.3× tier (50 pts)'],['1.5','1.5× tier (70 pts)'],['2','2× tier (100 pts)']],show:s=>s.jo==='yes'},
+  {id:'pnp',t:'Do you have a nomination certificate from a province or territory?',type:'choice',opts:yn},
+  {id:'sib',t:'Do you or your spouse have at least one brother or sister living in Canada who is a citizen or permanent resident?',h:'Must be 18 or older, related by blood, marriage, common-law partnership or adoption, with a parent in common.',type:'choice',opts:yn},
+  {id:'spEdu',t:'Spouse: what is the highest level of education your spouse or common-law partner has?',type:'select',opts:EDU.map(e=>[e[0],e[1]]),show:withSpouse},
+  {id:'spCdn',t:'Spouse: in the last ten years, how many years of skilled work experience in Canada does your spouse have?',type:'choice',opts:[['0','None or less than a year'],['1','1 year'],['2','2 years'],['3','3 years'],['4','4 years'],['5','5 years or more']],show:withSpouse},
+  {id:'sp',t:'Spouse: did your spouse take a language test?',h:'Any approved English or French test, less than two years old.',type:'lang',key:'sp',spouse:true,show:withSpouse}
+];
+const testKey = q=> q.key==='l1'?'l1test': q.key==='l2'?'l2test':'spTest';
+
+let S = {};
+function blank(){ return {l1:{},l2:{},sp:{}}; }
+S = blank();
+
+function isVisible(q){ return !q.show || q.show(S); }
+function isAnswered(q){
+  if(q.type==='lang'){
+    const tk=testKey(q), t=S[tk];
+    if(!t) return false;
+    if(t==='none') return true;
+    return !!clbsOf(t,S[q.key]);
+  }
+  return S[q.id]!=null && S[q.id]!=='';
+}
+
+/* ---------- render questions ---------- */
+const qlist=document.getElementById('qlist');
+const nodes={};
+function el(tag,attrs,html){ const e=document.createElement(tag); if(attrs) for(const k in attrs) e.setAttribute(k,attrs[k]); if(html!=null) e.innerHTML=html; return e; }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function buildQ(q){
+  const wrap=el('fieldset',{class:'q'+(q.isNew?' isnew':''),id:'q-'+q.id});
+  wrap.style.margin='0';
+  const head=el('div',{class:'qhead'});
+  head.appendChild(el('span',{class:'qnum'}));
+  head.appendChild(el("span",{class:"qtitle"},(q.isNew?'<span class="badge">New</span>':'')+esc(q.t)));
+  wrap.appendChild(head);
+  if(q.h) wrap.appendChild(el('p',{class:'qhelp'},esc(q.h)));
+  const body=el('div',{class:'qbody'}); wrap.appendChild(body);
+  if(q.type==='choice'){
+    const p=el('div',{class:'pills'});
+    q.opts.forEach(([v,l],i)=>{
+      const lab=el('label'); const inp=el('input',{type:'radio',name:q.id,value:v,id:q.id+'-'+i});
+      inp.addEventListener('change',()=>{S[q.id]=v; update();});
+      lab.appendChild(inp); lab.appendChild(el('span',null,esc(l))); p.appendChild(lab);
+    });
+    body.appendChild(p);
+  } else if(q.type==='select'){
+    const sel=el('select',{id:'sel-'+q.id,'aria-label':q.t});
+    sel.appendChild(el('option',{value:''},'Select…'));
+    q.opts.forEach(([v,l])=>sel.appendChild(el('option',{value:v},esc(l))));
+    sel.addEventListener('change',()=>{S[q.id]=sel.value||null; update();});
+    body.appendChild(sel);
+  } else if(q.type==='lang'){
+    const sel=el('select',{id:'test-'+q.key,'aria-label':'Language test'});
+    sel.appendChild(el('option',{value:''},'Select…'));
+    if(q.second||q.spouse) sel.appendChild(el('option',{value:'none'},q.spouse?'No, or not applicable':'No'));
+    body.appendChild(sel);
+    const grid=el('div',{class:'abil'}); body.appendChild(grid);
+    const line=el('p',{class:'clbline'}); body.appendChild(line);
+    sel.addEventListener('change',()=>{ S[testKey(q)]=sel.value||null; S[q.key]={}; buildAbil(q); update(); });
+  }
+  return wrap;
+}
+function testOptionsFor(q){
+  let keys=Object.keys(TESTS);
+  if(q.second){
+    const first=S.l1test? TESTS[S.l1test].lang:null;
+    if(first) keys=keys.filter(k=>TESTS[k].lang!==first);
+  }
+  return keys;
+}
+function refreshTestSelect(q){
+  const sel=document.getElementById('test-'+q.key);
+  const cur=S[testKey(q)];
+  const keep=[...sel.options].filter(o=>o.value===''||o.value==='none');
+  sel.innerHTML=''; keep.forEach(o=>sel.appendChild(o));
+  testOptionsFor(q).forEach(k=>sel.appendChild(el('option',{value:k},esc(TESTS[k].name))));
+  if(cur && [...sel.options].some(o=>o.value===cur)) sel.value=cur;
+  else { sel.value=''; if(cur){ S[testKey(q)]=null; S[q.key]={}; buildAbil(q);} }
+}
+function scoreOptions(test,ab){
+  if(test==='ielts'){ const a=[]; for(let v=9;v>=0;v-=0.5) a.push([String(v),v.toFixed(1)]); return a; }
+  if(test==='celpip'){ const a=[]; for(let v=12;v>=1;v--) a.push([String(v),String(v)]); a.push(['0','M (or below 1)']); return a; }
+  if(test==='clb'||test==='nclc'){ const a=[]; for(let v=12;v>=0;v--) a.push([String(v),(test==='clb'?'CLB ':'NCLC ')+v+(v<4?' or below':'')]); return a; }
+  if(test==='tcf'&&(ab==='W'||ab==='S')){ const a=[]; for(let v=20;v>=0;v--) a.push([String(v),String(v)]); return a; }
+  return null;
+}
+function buildAbil(q){
+  const node=nodes[q.id]; const grid=node.querySelector('.abil'); grid.innerHTML='';
+  const t=S[testKey(q)];
+  if(!t||t==='none'){ node.querySelector('.clbline').textContent=''; return; }
+  for(const a of AB){
+    const lab=el('label',{for:'ab-'+q.key+'-'+a},ABN[a]);
+    const opts=scoreOptions(t,a); let inp;
+    if(opts){ inp=el('select',{id:'ab-'+q.key+'-'+a}); inp.appendChild(el('option',{value:''},'–')); opts.forEach(([v,l])=>inp.appendChild(el('option',{value:v},l))); }
+    else { const mx = t==='pte'?90:TESTS[t].max[a]; inp=el('input',{type:'number',id:'ab-'+q.key+'-'+a,min:t==='pte'?10:0,max:mx,step:1,inputmode:'numeric',placeholder:'0–'+mx}); }
+    const v=S[q.key][a]; if(v!=null) inp.value=v;
+    const h=()=>{ S[q.key][a]= inp.value===''?null:inp.value; update(); };
+    inp.addEventListener('change',h); inp.addEventListener('input',h);
+    lab.appendChild(inp); grid.appendChild(lab);
+  }
+}
+
+Q.forEach(q=>{ const n=buildQ(q); nodes[q.id]=n; qlist.appendChild(n); });
+
+function syncInputs(){
+  Q.forEach(q=>{
+    const n=nodes[q.id];
+    if(q.type==='choice'){ n.querySelectorAll('input').forEach(i=>{i.checked = S[q.id]===i.value;}); }
+    else if(q.type==='select'){ n.querySelector('select').value = S[q.id]||''; }
+    else if(q.type==='lang'){ refreshTestSelect(q); document.getElementById('test-'+q.key).value=S[testKey(q)]||''; buildAbil(q); }
+  });
+}
+
+/* ---------- live panel ---------- */
+const FACT = [
+  ['Age','age',s=>s.sp?100:110],['Education','edu',s=>s.sp?140:150],['First language','lang1',s=>s.sp?128:136],['Second language','lang2',s=>s.sp?22:24],
+  ['Canadian work / Labour market','_cw',s=>s.sp?140:150],['Spouse factors','spT',()=>40],['Skill transferability','transfer',()=>100],['Additional points','add',()=>600]
+];
+function fmtD(d){ return (d>0?'+':d<0?'−':'±')+Math.abs(d); }
+let complete=false;
+function update(){
+  // re-filter second-language test choices when first changes
+  refreshTestSelect(Q.find(q=>q.id==='l2'));
+  let n=0, firstOpen=null, total=0, done=0;
+  Q.forEach(q=>{
+    const node=nodes[q.id], vis=isVisible(q);
+    if(!vis){ node.hidden=true; node.classList.remove('current'); return; }
+    total++;
+    const ans=isAnswered(q);
+    if(firstOpen && !ans){ node.hidden=true; node.classList.remove('current'); return; }
+    node.hidden=false; n++;
+    node.querySelector('.qnum').textContent=String(n).padStart(2,'0');
+    node.classList.toggle('current', !ans && !firstOpen);
+    if(ans) done++; else if(!firstOpen) firstOpen=q;
+    if(q.type==='lang'){
+      const c=clbsOf(S[testKey(q)],S[q.key]);
+      const line=node.querySelector('.clbline');
+      const t=S[testKey(q)];
+      line.textContent = c? 'Equivalent: '+AB.map(a=>ABN[a]+' '+(TESTS[t].lang==='fr'?'NCLC ':'CLB ')+(c[a]<4?'<4':c[a]>10?'10+':c[a])).join(' · ') : '';
+    }
+  });
+  complete = !firstOpen;
+  const r=score(S);
+  document.getElementById('sOld').textContent=r.oldT;
+  document.getElementById('sNew').textContent=r.newT;
+  const d=r.newT-r.oldT;
+  document.getElementById('sDelta').textContent = d===0? 'Same score under both systems' : 'New rules: '+fmtD(d)+' points';
+  document.getElementById('mOld').textContent=r.oldT;
+  document.getElementById('mNew').textContent=r.newT;
+  document.getElementById('mDelta').textContent=fmtD(d);
+  const fb=document.getElementById('fbars'); fb.innerHTML='';
+  FACT.forEach(([lab,key,mx])=>{
+    const o = key==='_cw'? r.cdnOld : r[key], nn = key==='_cw'? r.lmi : r[key], m=mx(r);
+    const div=el('div',{class:'fb'});
+    div.innerHTML='<div class="row"><span>'+lab+'</span><b>'+(o===nn? o : '<span style="color:var(--old)">'+o+'</span> → <span style="color:var(--new)">'+nn+'</span>')+'</b></div><div class="track"><i class="o" style="width:'+Math.min(100,o/m*100)+'%"></i><i class="n" style="width:'+Math.min(100,nn/m*100)+'%"></i></div>';
+    fb.appendChild(div);
+  });
+  document.getElementById('prog').textContent = complete? 'All questions answered.' : 'Answered '+done+' of '+total+' questions. Scores update as you go.';
+  document.getElementById('btnResults').hidden=!complete;
+  const res=document.getElementById('results');
+  if(complete){ res.hidden=false; renderResults(r); } else res.hidden=true;
+  renderDrawTable();
+  save();
+}
+
+/* ---------- results ---------- */
+function renderResults(r){
+  const rows=[
+    ['g','A. Core / human capital'],
+    ['Age',r.age,r.age],['Level of education',r.edu,r.edu],['First official language',r.lang1,r.lang1],['Second official language',r.lang2,r.lang2],
+    ['Canadian work experience (current rules)',r.cdnOld,'—'],
+    ['Labour market integration (new): '+(r.lmi===r.jo&&r.jo>r.routeA?'job offer route':'work experience route ('+r.cdnOld+' + '+r.hw+' high-wage)'),'—',r.lmi],
+    ['g','B. Spouse or common-law partner'],
+    ['Education, language and Canadian work',r.spT,r.spT],
+    ['g','C. Skill transferability'],
+    ['Education combinations',r.eduT,r.eduT],['Foreign work experience combinations',r.forT,r.forT],['Certificate of qualification',r.coqT,r.coqT],['Subtotal (max 100)',r.transfer,r.transfer],
+    ['g','D. Additional points'],
+    ['Provincial nomination',r.pnp,r.pnp],['Job offer (removed March 2025; now part of factor A)',0,'—'],['Canadian post-secondary education',r.cedu,r.cedu],['French-language skills',r.fr,r.fr],['Brother or sister in Canada',r.sib,r.sib],
+  ];
+  let h='<thead><tr><th>Factor</th><th class="n">Current</th><th class="n">From Nov 3</th></tr></thead><tbody>';
+  rows.forEach(rw=>{
+    if(rw[0]==='g'){ h+='<tr class="grp"><td colspan="3">'+rw[1]+'</td></tr>'; return; }
+    const ch = rw[1]!==rw[2] && rw[1]!=='—' && rw[2]!=='—' ? ' chg':'';
+    h+='<tr><td>'+esc(rw[0])+'</td><td class="n">'+rw[1]+'</td><td class="n'+ch+'">'+rw[2]+'</td></tr>';
+  });
+  h+='<tr class="tot"><td>Comprehensive Ranking System total</td><td class="n" style="color:var(--old)">'+r.oldT+'</td><td class="n" style="color:var(--new)">'+r.newT+'</td></tr></tbody>';
+  document.getElementById('bkTable').innerHTML=h;
+
+  // age alert
+  const aa=document.getElementById('ageAlert'); aa.innerHTML='';
+  const ag=+S.age;
+  if(ag>=29 && ag<45){
+    const nx=score(Object.assign({},S,{age:String(ag+1)}));
+    const loss=r.newT-nx.newT;
+    if(loss>0) aa.innerHTML='<div class="alert"><b>Age clock:</b> on your next birthday you lose <b>'+loss+' points</b> (new score '+nx.newT+'). Points drop every year from 30 and reach zero at 45, so profile timing matters.</div>';
+  }
+  renderSuggestions(r);
+  renderCompare(r);
+}
+
+function clone(){ return JSON.parse(JSON.stringify(S)); }
+function setLangAll(st,key,testKeyName,test,lvl){ st[testKeyName]=test; st[key]={S:lvl,L:lvl,R:lvl,W:lvl}; }
+function raiseL1(st,lvl){
+  // express target as CLB levels for simulation
+  const lang=TESTS[st.l1test].lang;
+  const c=clbsOf(st.l1test,st.l1);
+  const t=lang==='fr'?'nclc':'clb';
+  st.l1test=t; st.l1={}; for(const a of AB) st.l1[a]=Math.max(c[a],lvl);
+  if(st.l2test && st.l2test!=='none' && TESTS[st.l2test].lang===TESTS[t].lang) st.l2test='none';
+}
+const IELTS_TARGET={9:'L 8.0, R 7.0, W 7.0, S 7.0',10:'L 8.5, R 8.0, W 7.5, S 7.5'};
+const CELPIP_TARGET={9:'9 in every skill',10:'10 in every skill'};
+function langHint(lvl){
+  const t=S.l1test;
+  if(t==='ielts') return 'IELTS General: '+IELTS_TARGET[lvl]+'.';
+  if(t==='celpip') return 'CELPIP: '+CELPIP_TARGET[lvl]+'.';
+  if(t==='pte') return 'PTE Core: '+(lvl===9?'R 78, W 88, L 82, S 84':'R 88, W 90, L 89, S 89')+' or higher.';
+  if(t==='tef') return 'TEF Canada: '+(lvl===9?'CE 248, CO 298, EE 371, EO 371':'CE 263, CO 316, EE 393, EO 393')+' or higher.';
+  if(t==='tcf') return 'TCF Canada: '+(lvl===9?'CO 523, CE 524, EE 14, EO 14':'CO 549, CE 549, EE 16, EO 16')+' or higher.';
+  return '';
+}
+function renderSuggestions(r){
+  const out=[];
+  const add=(title,why,st,opts)=>{ const x=score(st); out.push({title,why,dO:x.oldT-r.oldT,dN:x.newT-r.newT,newOnly:opts&&opts.newOnly,range:opts&&opts.range}); };
+  const firstLang=TESTS[S.l1test].lang;
+  // language
+  if(r.m1<9){ const st=clone(); raiseL1(st,9); add('Retake your '+(firstLang==='fr'?'French':'English')+' test and reach '+(firstLang==='fr'?'NCLC':'CLB')+' 9 in every skill','The single biggest lever for most people. CLB 9 also unlocks the top tier of skill-transferability points. Target for '+langHint(9),st); }
+  if(r.m1<10){ const st=clone(); raiseL1(st,10); add('Aim for '+(firstLang==='fr'?'NCLC':'CLB')+' 10 in every skill','Each skill at CLB 10+ is worth '+(r.sp?32:34)+' points, the maximum. Target for '+langHint(10),st); }
+  // second language
+  const hasFr = (TESTS[S.l1test].lang==='fr') || (S.l2test&&S.l2test!=='none'&&TESTS[S.l2test].lang==='fr');
+  if(!hasFr){
+    const st=clone(); setLangAll(st,'l2','l2test','nclc',7); add('Take a French test (TEF Canada or TCF Canada) and reach NCLC 7','Adds second-language points plus the French bonus ('+(r.c1&&r.m1>=5?50:25)+'). NCLC 7 also makes you eligible for French-language category draws, which recently cut off between 382 and 435.',st);
+    const st2=clone(); setLangAll(st2,'l2','l2test','nclc',9); add('Push French to NCLC 9 in every skill','Same French bonus, with the maximum second-language points.',st2);
+  } else {
+    const frIsL2 = S.l2test&&S.l2test!=='none'&&TESTS[S.l2test].lang==='fr';
+    if(frIsL2){ const c=clbsOf(S.l2test,S.l2); if(minOf(c)<7){ const st=clone(); setLangAll(st,'l2','l2test','nclc',Math.max(7,minOf(c))); add('Raise French to NCLC 7 in every skill','You get the French bonus only at NCLC 7 or higher in all four skills.',st);} }
+    const hasEn = TESTS[S.l1test].lang==='en' || (S.l2test&&S.l2test!=='none'&&TESTS[S.l2test].lang==='en');
+    if(!hasEn){ const st=clone(); setLangAll(st,'l2','l2test','clb',7); add('Take an English test (CELPIP, IELTS or PTE Core) and reach CLB 5+','With strong French, CLB 5 or higher in English doubles the French bonus from 25 to 50.',st); }
+  }
+  // canadian experience
+  const cy=+S.cdnWork;
+  if(cy<5){ const st=clone(); st.cdnWork=String(cy+1); if(cy===0&&!st.hwExp) st.hwExp='none'; add('Gain one more year of Canadian work experience','Raises the work-length points and, at 1 and 2 years, skill-transferability combinations too.',st); }
+  if((S.hwExp||'none')!=='2'){
+    const base=clone(); if(+base.cdnWork<1) base.cdnWork='1';
+    const lo=clone(); Object.assign(lo,base,{hwExp:(S.hwExp&&S.hwExp!=='none')?String(S.hwExp==='1.3'?'1.5':'2'):'1.3'});
+    const hi=clone(); Object.assign(hi,base,{hwExp:'2'});
+    const xl=score(lo), xh=score(hi);
+    out.push({title:'Build 12 months of experience in a high-wage occupation',why:'New from November 3: a 20, 40 or 70 point bonus on top of work-length points, based on your occupation’s tier. Check whether your NOC code is on IRCC’s high-wage list.'+(cy<1?' Assumes you also reach 1 year of Canadian experience.':''),dO:xh.oldT-r.oldT,dN:xh.newT-r.newT,dNlo:xl.newT-r.newT,newOnly:true});
+  }
+  if(S.jo!=='yes' || S.joTier!=='2'){
+    const lo=clone(); lo.jo='yes'; lo.joTier='1.3'; const hi=clone(); hi.jo='yes'; hi.joTier='2';
+    const xl=score(lo), xh=score(hi);
+    if(xh.newT>r.newT) out.push({title:'Get a job offer in a high-wage occupation',why:'New from November 3: 50, 70 or 100 points, no LMIA required. It replaces your Canadian-experience points only if it’s higher, so it helps most if you have little Canadian experience.',dO:0,dN:xh.newT-r.newT,dNlo:Math.max(0,xl.newT-r.newT),newOnly:true});
+  }
+  // education
+  const eg=EDUMAP[S.edu][5];
+  if(['lt_sec','sec','one','two','bach','twoplus'].includes(S.edu)){
+    const st=clone(); st.edu='master'; add('Complete a master’s degree','Adds education points and moves you to the top tier of education combinations in skill transferability. Get an ECA if you study outside Canada.',st);
+    const st2=clone(); st2.edu='master'; st2.cdnEdu='yes'; st2.cdnEduLvl='long';
+    if(!(S.cdnEdu==='yes'&&S.cdnEduLvl==='long')) add('Study a master’s in Canada','A Canadian master’s also earns the 30-point Canadian education bonus, and can lead to Canadian work experience after graduation.',st2);
+  } else if(S.edu==='master'){
+    const st=clone(); st.edu='phd'; add('Complete a PhD','A doctorate is the highest education level in the CRS.',st);
+  }
+  if(eg>0 && S.edu!=='twoplus' && ['one','two','bach'].includes(S.edu)){
+    const st=clone(); st.edu='twoplus'; add('Add a second post-secondary credential','Two or more credentials (one of 3+ years) count higher and unlock the 50-point education combinations.',st);
+  }
+  // foreign
+  const fy=+S.foreign;
+  if(fy<3){ const st=clone(); st.foreign='3'; add('Reach 3 years of foreign skilled work experience','Foreign experience scores only through skill transferability, combined with language and Canadian experience.',st); }
+  // spouse
+  if(r.sp){
+    const cs=clbsOf(S.spTest,S.sp);
+    if(!cs || minOf(cs)<9){ const st=clone(); setLangAll(st,'sp','spTest','clb',9); add('Your spouse takes or retakes a language test (CLB 9)','Up to 20 points from your spouse’s language results.',st); }
+    if(EDUMAP[S.spEdu][4]<10){ const st=clone(); st.spEdu='master'; add('Your spouse completes a master’s degree','Up to 10 points from spouse education.',st); }
+    if(+S.spCdn<1){ const st=clone(); st.spCdn='1'; add('Your spouse gains a year of Canadian work experience','5 points for one year, up to 10 for five.',st); }
+    const st=clone(); st.spouseCome='no'; const x=score(st);
+    if(x.newT>r.newT) out.push({title:'Compare: apply without your spouse as the accompanying partner',why:'Your own factors score higher when your spouse does not come with you. Many couples compare whose profile scores better as principal applicant. This is a strategy check, not advice to leave anyone behind.',dO:x.oldT-r.oldT,dN:x.newT-r.newT});
+  }
+  // sibling, pnp
+  if(S.pnp!=='yes'){ const st=clone(); st.pnp='yes'; add('Get a provincial nomination (PNP)','Adds 600 points, which all but guarantees an invitation. Look at Express Entry streams in provinces that match your occupation.',st); }
+  if(S.coq!=='yes' && S.edu && (+S.foreign>=1||+S.cdnWork>=1)){ const st=clone(); st.coq='yes'; const x=score(st); if(x.newT>r.newT && r.m1>=5) out.push({title:'If you work in a skilled trade: get a certificate of qualification',why:'Combines with your language results for up to 50 skill-transferability points.',dO:x.oldT-r.oldT,dN:x.newT-r.newT}); }
+
+  const list=out.filter(o=>o.dN>0||o.dO>0).sort((a,b)=>b.dN-a.dN);
+  const top=Math.max(1,...list.map(o=>o.dN));
+  const box=document.getElementById('sugs'); box.innerHTML='';
+  if(!list.length){ box.innerHTML='<p class="note">Your profile is already near the maximum on every factor we can simulate.</p>'; return; }
+  list.forEach(o=>{
+    const d=el('div',{class:'sug'});
+    const nTxt = o.dNlo!=null && o.dNlo!==o.dN ? '+'+o.dNlo+' to +'+o.dN : fmtD(o.dN);
+    d.innerHTML='<h3>'+(o.newOnly?'<span class="badge">New rules</span>':'')+esc(o.title)+'</h3><div class="gain"><span class="g n">New '+nTxt+'</span><span class="g o">Current '+fmtD(o.dO)+'</span></div><p class="why">'+esc(o.why)+'</p><div class="bar"><i style="width:'+Math.max(2,Math.min(100,o.dN/top*100))+'%"></i></div>';
+    box.appendChild(d);
+  });
+}
+
+/* ---------- draws ---------- */
+const CATS = {
+  cec:{n:'Canadian Experience Class',c:'--c-cec',d:'For candidates with at least one year of skilled work in Canada in the last three years. The main draw for people already working in Canada.'},
+  fr:{n:'French-language proficiency',c:'--c-fr',d:'For candidates with NCLC 7 or higher in all four French skills. Largest invitation counts and among the lowest cut-offs.'},
+  pnp:{n:'Provincial Nominee Program',c:'--c-pnp',d:'Only candidates with a provincial nomination (worth 600 points), which is why cut-offs sit above 600.'},
+  health:{n:'Healthcare and social services',c:'--c-health',d:'Six months of continuous work experience in an eligible healthcare or social services occupation in the last three years.'},
+  phys:{n:'Physicians with Canadian work experience',c:'--c-health',d:'Physicians with Canadian experience in eligible medical occupations.'},
+  trades:{n:'Trade occupations',c:'--c-trade',d:'Six months of continuous experience in an eligible trade (construction, electricians, plumbers, welders and more).'},
+  transport:{n:'Transport occupations',c:'--c-trade',d:'Six months of continuous experience in eligible transport occupations.'},
+  mgr:{n:'Senior managers with Canadian work experience',c:'--c-other',d:'Senior managers with eligible Canadian work experience.'},
+  mil:{n:'Skilled military recruits',c:'--c-other',d:'Candidates recruited by the Canadian Armed Forces. First round held July 23, 2026.'}
+};
+const DRAWS = [
+  [412,'2026-04-27','pnp',473,795],[413,'2026-04-28','cec',2000,514],[414,'2026-04-29','fr',4000,400],
+  [415,'2026-05-11','pnp',380,798],[416,'2026-05-25','pnp',334,805],[417,'2026-05-27','cec',3000,518],[418,'2026-05-28','fr',4500,409],
+  [419,'2026-06-22','pnp',955,730],[420,'2026-06-23','cec',4000,516],[421,'2026-06-24','phys',271,223],[422,'2026-06-25','health',4000,475],
+  [423,'2026-07-06','pnp',534,708],[424,'2026-07-07','cec',2000,517],[425,'2026-07-09','fr',5000,420],[426,'2026-07-10','mgr',500,392],
+  [427,'2026-07-20','pnp',511,744],[428,'2026-07-21','cec',2000,516],[429,'2026-07-22','fr',5000,399],[430,'2026-07-23','mil',4,368],
+  [431,'2026-08-04','pnp',507,768],[432,'2026-08-05','cec',3000,516],[433,'2026-08-06','fr',5000,391],[434,'2026-08-07','transport',300,470],
+  [435,'2026-08-17','pnp',442,760],[436,'2026-08-18','cec',1000,523],[437,'2026-08-19','fr',5000,382],[438,'2026-08-31','pnp',562,697],
+  [439,'2026-09-01','cec',2000,521],[440,'2026-09-03','phys',229,198],[441,'2026-09-04','health',3500,475],
+  [442,'2026-09-14','pnp',576,734],[443,'2026-09-15','cec',2000,519],[444,'2026-09-16','mgr',250,389],
+  [445,'2026-09-28','pnp',733,725],[446,'2026-09-29','cec',2000,518],
+  [447,'2026-10-01','trades',3500,476],[448,'2026-10-13','pnp',752,772],[449,'2026-10-15','cec',2500,519],[450,'2026-10-16','fr',5000,435]
+].map(([no,date,cat,itas,crs])=>({no,date,cat,itas,crs}));
+const FILTERS=[['all','All draws'],['cec','CEC'],['fr','French'],['pnp','PNP'],['occ','Occupation categories']];
+let filt='all';
+const occSet=['health','phys','trades','transport','mgr','mil'];
+function inFilt(d){ return filt==='all'||(filt==='occ'?occSet.includes(d.cat):d.cat===filt); }
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(s){ const [y,m,d]=s.split('-'); return MON[+m-1]+' '+(+d)+', '+y; }
+function cssv(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+function renderStats(){
+  const tot=DRAWS.reduce((a,d)=>a+d.itas,0);
+  const rng=c=>{ const v=DRAWS.filter(d=>d.cat===c).map(d=>d.crs); return Math.min(...v)+'–'+Math.max(...v); };
+  const s=[['Draws',DRAWS.length],['Invitations issued',tot.toLocaleString('en-CA')],['CEC cut-off range',rng('cec')],['French cut-off range',rng('fr')],['PNP cut-off range',rng('pnp')]];
+  document.getElementById('dstats').innerHTML=s.map(([l,v])=>'<div class="stat"><span class="eyebrow">'+l+'</span><span class="v">'+v+'</span></div>').join('');
+  const f=document.getElementById('dfilters');
+  FILTERS.forEach(([k,l])=>{ const b=el('button',{type:'button','aria-pressed':String(k===filt)},l); b.addEventListener('click',()=>{filt=k; f.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); renderChart(); renderDrawTable();}); f.appendChild(b); });
+  document.getElementById('catinfo').innerHTML=Object.values(CATS).map(c=>'<div><span class="dot" style="background:var('+c.c+')"></span><b>'+c.n+'</b><br>'+c.d+'</div>').join('');
+}
+function renderChart(){
+  const svg=document.getElementById('dchart');
+  const data=DRAWS.filter(inFilt);
+  const W=900,H=320,L=48,R=16,T=16,B=36;
+  const t0=new Date('2026-04-20').getTime(), t1=new Date('2026-10-23').getTime();
+  let lo=Math.min(...data.map(d=>d.crs)), hi=Math.max(...data.map(d=>d.crs));
+  lo=Math.floor((lo-20)/50)*50; hi=Math.ceil((hi+20)/50)*50;
+  const x=t=>L+(t-t0)/(t1-t0)*(W-L-R), y=v=>T+(hi-v)/(hi-lo)*(H-T-B);
+  const ink=cssv('--muted'), line=cssv('--line');
+  let g='';
+  const step=(hi-lo)>400?100:50;
+  for(let v=lo;v<=hi;v+=step){ g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="'+line+'" stroke-width="1"/><text x="'+(L-8)+'" y="'+(y(v)+4)+'" text-anchor="end" font-size="11" font-family="IBM Plex Mono, monospace" fill="'+ink+'">'+v+'</text>'; }
+  for(let m=4;m<=10;m++){ const t=new Date(2026,m,1).getTime(); if(t>t1) break; g+='<text x="'+x(t)+'" y="'+(H-12)+'" text-anchor="middle" font-size="11" fill="'+ink+'">'+MON[m]+'</text><line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="'+line+'" stroke-dasharray="2 4"/>'; }
+  // series lines for main categories
+  ['cec','fr','pnp'].forEach(c=>{ const pts=data.filter(d=>d.cat===c); if(pts.length<2) return; g+='<polyline fill="none" stroke="'+cssv(CATS[c].c)+'" stroke-opacity=".5" stroke-width="1.5" points="'+pts.map(d=>x(new Date(d.date).getTime())+','+y(d.crs)).join(' ')+'"/>'; });
+  // user score lines
+  if(complete){ const r=score(S);
+    [[r.newT,'--new','Your new score'],[r.oldT,'--old','Your current score']].forEach(([v,c,l])=>{ if(v>=lo&&v<=hi) g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="'+cssv(c)+'" stroke-width="1.5" stroke-dasharray="6 4"/><text x="'+(W-R-4)+'" y="'+(y(v)-5)+'" text-anchor="end" font-size="11" font-weight="600" fill="'+cssv(c)+'">'+l+' '+v+'</text>'; });
+  }
+  data.forEach(d=>{ const cx=x(new Date(d.date).getTime()), cy=y(d.crs), col=cssv(CATS[d.cat].c); const rr=Math.max(4,Math.min(9,Math.sqrt(d.itas)/8));
+    g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+rr+'" fill="'+col+'" fill-opacity=".85" stroke="'+cssv('--surface')+'" stroke-width="1.5"><title>#'+d.no+' · '+fmtDate(d.date)+' · '+CATS[d.cat].n+' · '+d.itas.toLocaleString('en-CA')+' ITAs · CRS '+d.crs+'</title></circle>'; });
+  svg.innerHTML=g;
+  const cats=[...new Set(data.map(d=>d.cat))];
+  document.getElementById('dlegend').innerHTML=cats.map(c=>'<span><span class="dot" style="background:var('+CATS[c].c+')"></span>'+CATS[c].n+'</span>').join('')+'<span>Dot size = invitations</span>';
+}
+function renderDrawTable(){
+  const r=complete?score(S):null;
+  let h='<thead><tr><th class="n">#</th><th>Date</th><th>Draw type</th><th class="n">Invitations</th><th class="n">CRS cut-off</th>'+(r?'<th class="n">Your current ('+r.oldT+')</th><th class="n">Your new ('+r.newT+')</th>':'')+'</tr></thead><tbody>';
+  DRAWS.filter(inFilt).slice().reverse().forEach(d=>{
+    h+='<tr><td class="n">'+d.no+'</td><td style="white-space:nowrap">'+fmtDate(d.date)+'</td><td><span class="dot" style="background:var('+CATS[d.cat].c+')"></span>'+CATS[d.cat].n+'</td><td class="n">'+d.itas.toLocaleString('en-CA')+'</td><td class="n"><b>'+d.crs+'</b></td>';
+    if(r) h+='<td class="n">'+(r.oldT>=d.crs?'<span class="ok">Above</span>':'<span class="no">'+(r.oldT-d.crs)+'</span>')+'</td><td class="n">'+(r.newT>=d.crs?'<span class="ok">Above</span>':'<span class="no">'+(r.newT-d.crs)+'</span>')+'</td>';
+    h+='</tr>';
+  });
+  document.getElementById('dtable').innerHTML=h+'</tbody>';
+  renderChart();
+}
+function renderCompare(r){
+  const latest={}; DRAWS.forEach(d=>{ latest[d.cat]=d; });
+  const order=['cec','fr','health','trades','mgr','pnp'];
+  document.getElementById('compare').innerHTML=order.filter(c=>latest[c]).map(c=>{ const d=latest[c];
+    const o=r.oldT-d.crs, n=r.newT-d.crs;
+    return '<div class="cut"><span class="eyebrow"><span class="dot" style="background:var('+CATS[c].c+')"></span>'+CATS[c].n+'</span><span class="v">'+d.crs+'</span><span class="note">#'+d.no+', '+fmtDate(d.date)+'</span><span style="font-size:13px">Current: <span class="'+(o>=0?'ok':'no')+'">'+fmtD(o)+'</span> · New: <span class="'+(n>=0?'ok':'no')+'">'+fmtD(n)+'</span></span></div>'; }).join('');
+}
+
+/* ---------- sample / reset / persistence ---------- */
+const SAMPLE={marital:'married',spouseCit:'no',spouseCome:'yes',age:'31',edu:'bach',cdnEdu:'no',cdnEduLvl:null,l1test:'ielts',l1:{S:'6.5',L:'8',R:'7',W:'7'},l2test:'none',l2:{},cdnWork:'1',hwExp:'1.5',foreign:'2',coq:'no',jo:'no',joTier:null,pnp:'no',sib:'no',spEdu:'bach',spCdn:'0',spTest:'ielts',sp:{S:'6',L:'6',R:'6',W:'6'}};
+document.getElementById('btnSample').addEventListener('click',()=>{ S=JSON.parse(JSON.stringify(SAMPLE)); syncInputs(); update(); });
+document.getElementById('btnReset').addEventListener('click',()=>{ S=blank(); syncInputs(); update(); document.getElementById('calculator').scrollIntoView({behavior:'smooth'}); });
+document.getElementById('btnResults').addEventListener('click',()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}));
+function save(){ try{ localStorage.setItem('crs-cmp',JSON.stringify(S)); }catch(e){} }
+try{ const v=JSON.parse(localStorage.getItem('crs-cmp')||'null'); if(v&&typeof v==='object') S=Object.assign(blank(),v); }catch(e){}
+
+renderStats();
+syncInputs();
+update();
+const mq=window.matchMedia('(prefers-color-scheme: dark)'); if(mq.addEventListener) mq.addEventListener('change',renderChart);
+new MutationObserver(renderChart).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
+</body>
+</html>
